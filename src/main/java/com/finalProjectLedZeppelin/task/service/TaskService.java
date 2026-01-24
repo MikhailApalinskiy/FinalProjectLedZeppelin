@@ -2,6 +2,7 @@ package com.finalProjectLedZeppelin.task.service;
 
 import com.finalProjectLedZeppelin.auth.model.User;
 import com.finalProjectLedZeppelin.auth.repo.UserRepository;
+import com.finalProjectLedZeppelin.common.error.NotFoundException;
 import com.finalProjectLedZeppelin.task.dto.TaskCreateRequest;
 import com.finalProjectLedZeppelin.task.dto.TaskResponse;
 import com.finalProjectLedZeppelin.task.dto.TaskUpdateRequest;
@@ -42,13 +43,13 @@ public class TaskService {
     @Transactional(readOnly = true)
     public TaskResponse get(Long userId, Long taskId) {
         Task t = taskRepository.findByIdAndUserId(taskId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("Task not found"));
+                .orElseThrow(() -> new NotFoundException("Task not found"));
         return toResponse(t);
     }
 
     public TaskResponse update(Long userId, Long taskId, TaskUpdateRequest req) {
         Task t = taskRepository.findByIdAndUserId(taskId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("Task not found"));
+                .orElseThrow(() -> new NotFoundException("Task not found"));
         t.setTitle(req.title());
         t.setDescription(req.description());
         if (req.status() != null) t.setStatus(req.status());
@@ -58,7 +59,7 @@ public class TaskService {
 
     public void delete(Long userId, Long taskId) {
         Task t = taskRepository.findByIdAndUserId(taskId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("Task not found"));
+                .orElseThrow(() -> new NotFoundException("Task not found"));
         taskRepository.delete(t);
     }
 

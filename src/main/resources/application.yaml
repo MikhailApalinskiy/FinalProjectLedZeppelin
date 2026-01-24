@@ -18,6 +18,15 @@ spring:
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
 
+logging:
+  level:
+    org.springframework.web: INFO
+
+app:
+  jwt:
+    secret: "A9fQX7M@Z2eK!sR4L%Jt6D#H0xP^B8m$C3Y5NWEVwUqTGaSdFh1Okr"
+    access-token-minutes: 60
+
 management:
   endpoints:
     web:
