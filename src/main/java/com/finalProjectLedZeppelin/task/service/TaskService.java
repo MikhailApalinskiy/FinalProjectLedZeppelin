@@ -11,6 +11,7 @@ import com.finalProjectLedZeppelin.task.model.TaskStatus;
 import com.finalProjectLedZeppelin.task.repo.TaskRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,37 +29,62 @@ public class TaskService {
         this.userRepository = userRepository;
     }
 
-    public TaskResponse create(Long userId, TaskCreateRequest req) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+    public TaskResponse create(TaskCreateRequest req) {
         Task t = new Task();
-        t.setUser(user);
         t.setTitle(req.title());
         t.setDescription(req.description());
         t.setDeadline(req.deadline());
-        Task saved = taskRepository.save(t);
-        return toResponse(saved);
+        if (req.assigneeId() == null) {
+            t.setAssignee(null);
+        } else {
+            User assignee = userRepository.findById(req.assigneeId())
+                    .orElseThrow(() -> new IllegalArgumentException("User not found: " + req.assigneeId()));
+            t.setAssignee(assignee);
+        }
+        return toResponse(taskRepository.save(t));
     }
 
     @Transactional(readOnly = true)
-    public TaskResponse get(Long userId, Long taskId) {
-        Task t = taskRepository.findByIdAndUserId(taskId, userId)
+    public TaskResponse get(Long userId, boolean isAdmin, Long taskId) {
+        Task t = taskRepository.findById(taskId)
                 .orElseThrow(() -> new NotFoundException("Task not found"));
+        if (!isAdmin) {
+            requireAssignee(userId, t);
+        }
         return toResponse(t);
     }
 
-    public TaskResponse update(Long userId, Long taskId, TaskUpdateRequest req) {
-        Task t = taskRepository.findByIdAndUserId(taskId, userId)
+    public TaskResponse adminUpdate(Long taskId, TaskUpdateRequest req) {
+        Task t = taskRepository.findById(taskId)
                 .orElseThrow(() -> new NotFoundException("Task not found"));
         t.setTitle(req.title());
         t.setDescription(req.description());
-        if (req.status() != null) t.setStatus(req.status());
+        if (req.status() != null) {
+            t.setStatus(req.status());
+        }
         t.setDeadline(req.deadline());
+        if (req.assigneeId() == null) {
+            t.setAssignee(null);
+        } else {
+            User assignee = userRepository.findById(req.assigneeId())
+                    .orElseThrow(() -> new IllegalArgumentException("User not found: " + req.assigneeId()));
+            t.setAssignee(assignee);
+        }
         return toResponse(t);
     }
 
-    public void delete(Long userId, Long taskId) {
-        Task t = taskRepository.findByIdAndUserId(taskId, userId)
+    public TaskResponse updateStatus(Long userId, boolean isAdmin, Long taskId, TaskStatus newStatus) {
+        Task t = taskRepository.findById(taskId)
+                .orElseThrow(() -> new NotFoundException("Task not found"));
+        if (!isAdmin) {
+            requireAssignee(userId, t);
+        }
+        t.setStatus(newStatus);
+        return toResponse(t);
+    }
+
+    public void delete(Long taskId) {
+        Task t = taskRepository.findById(taskId)
                 .orElseThrow(() -> new NotFoundException("Task not found"));
         taskRepository.delete(t);
     }
@@ -66,30 +92,58 @@ public class TaskService {
     @Transactional(readOnly = true)
     public Page<TaskResponse> list(
             Long userId,
+            boolean isAdmin,
             TaskStatus status,
             LocalDate deadlineFrom,
             LocalDate deadlineTo,
             Pageable pageable
     ) {
-        Page<Task> page;
         boolean hasStatus = status != null;
         boolean hasRange = deadlineFrom != null && deadlineTo != null;
-        if (hasStatus && hasRange) {
-            page = taskRepository.findAllByUserIdAndStatusAndDeadlineBetween(userId, status, deadlineFrom, deadlineTo, pageable);
-        } else if (hasStatus) {
-            page = taskRepository.findAllByUserIdAndStatus(userId, status, pageable);
-        } else if (hasRange) {
-            page = taskRepository.findAllByUserIdAndDeadlineBetween(userId, deadlineFrom, deadlineTo, pageable);
+        Page<Task> page;
+        if (isAdmin) {
+            if (hasStatus && hasRange) {
+                page = taskRepository.findAllByStatusAndDeadlineBetween(status, deadlineFrom, deadlineTo, pageable);
+            } else if (hasStatus) {
+                page = taskRepository.findAllByStatus(status, pageable);
+            } else if (hasRange) {
+                page = taskRepository.findAllByDeadlineBetween(deadlineFrom, deadlineTo, pageable);
+            } else {
+                page = taskRepository.findAll(pageable);
+            }
         } else {
-            page = taskRepository.findAllByUserId(userId, pageable);
+            if (hasStatus && hasRange) {
+                page = taskRepository.findAllByAssigneeIdAndStatusAndDeadlineBetween(userId, status, deadlineFrom, deadlineTo, pageable);
+            } else if (hasStatus) {
+                page = taskRepository.findAllByAssigneeIdAndStatus(userId, status, pageable);
+            } else if (hasRange) {
+                page = taskRepository.findAllByAssigneeIdAndDeadlineBetween(userId, deadlineFrom, deadlineTo, pageable);
+            } else {
+                page = taskRepository.findAllByAssigneeId(userId, pageable);
+            }
         }
         return page.map(this::toResponse);
     }
 
+    private void requireCanView(Long userId, Task t) {
+        requireAssignee(userId, t);
+    }
+
+    private void requireAssignee(Long userId, Task t) {
+        if (t.getAssignee() == null) {
+            throw new AccessDeniedException("Task is not assigned");
+        }
+        if (!t.getAssignee().getId().equals(userId)) {
+            throw new AccessDeniedException("Not your task");
+        }
+    }
+
     private TaskResponse toResponse(Task t) {
+        User a = t.getAssignee();
         return new TaskResponse(
                 t.getId(),
-                t.getUser().getId(),
+                a != null ? a.getId() : null,
+                a != null ? a.getEmail() : null,
                 t.getTitle(),
                 t.getDescription(),
                 t.getStatus(),

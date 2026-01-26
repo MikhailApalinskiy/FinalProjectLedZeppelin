@@ -10,6 +10,7 @@ public record TaskUpdateRequest(
         @NotBlank @Size(max = 200) String title,
         @Size(max = 5000) String description,
         TaskStatus status,
-        LocalDate deadline
+        LocalDate deadline,
+        Long assigneeId
 ) {
 }

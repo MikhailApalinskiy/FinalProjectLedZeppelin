@@ -8,6 +8,7 @@ import java.time.LocalDate;
 public record TaskCreateRequest(
         @NotBlank @Size(max = 200) String title,
         @Size(max = 5000) String description,
-        LocalDate deadline
+        LocalDate deadline,
+        Long assigneeId
 ) {
 }

@@ -13,8 +13,8 @@ import java.time.LocalDate;
 @Table(
         name = "tasks",
         indexes = {
-                @Index(name = "ix_tasks_user_status", columnList = "user_id,status"),
-                @Index(name = "ix_tasks_user_deadline", columnList = "user_id,deadline")
+                @Index(name = "ix_tasks_assignee_status", columnList = "assignee_id,status"),
+                @Index(name = "ix_tasks_assignee_deadline", columnList = "assignee_id,deadline")
         }
 )
 @Getter
@@ -26,9 +26,9 @@ public class Task {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(optional = false, fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    @ManyToOne(optional = true, fetch = FetchType.LAZY)
+    @JoinColumn(name = "assignee_id")
+    private User assignee;
 
     @Column(nullable = false, length = 200)
     private String title;
