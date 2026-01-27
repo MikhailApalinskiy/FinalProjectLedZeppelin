@@ -2,7 +2,10 @@ package com.finalProjectLedZeppelin.config;
 
 import com.finalProjectLedZeppelin.auth.jwt.JwtService;
 import com.finalProjectLedZeppelin.common.error.ApiError;
+import com.finalProjectLedZeppelin.common.logging.RequestIdMdcFilter;
+import com.finalProjectLedZeppelin.common.logging.UserIdMdcFilter;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -21,17 +24,40 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 
+@Log4j2
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
+        log.info("PasswordEncoder configured: BCryptPasswordEncoder");
         return new BCryptPasswordEncoder();
     }
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, JwtService jwtService, ObjectMapper objectMapper) {
+    public RequestIdMdcFilter requestIdMdcFilter() {
+        log.info("Security filter configured: RequestIdMdcFilter");
+        return new RequestIdMdcFilter();
+    }
+
+    @Bean
+    public UserIdMdcFilter userIdMdcFilter() {
+        log.info("Security filter configured: UserIdMdcFilter");
+        return new UserIdMdcFilter();
+    }
+
+    @Bean
+    SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            JwtService jwtService,
+            ObjectMapper objectMapper,
+            RequestIdMdcFilter requestIdMdcFilter,
+            UserIdMdcFilter userIdMdcFilter
+    ) {
+        log.info("SecurityFilterChain building (stateless=true, publicPaths=[/api/auth/**, /actuator/health])");
+        JwtAuthFilter jwtAuthFilter = new JwtAuthFilter(jwtService);
+        log.debug("Security filters order: RequestIdMdcFilter -> JwtAuthFilter -> UserIdMdcFilter");
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -48,7 +74,9 @@ public class SecurityConfig {
                                 writeApiError(response, objectMapper, HttpStatus.FORBIDDEN, "Access denied", request.getRequestURI())
                         )
                 )
-                .addFilterBefore(new JwtAuthFilter(jwtService), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(requestIdMdcFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(userIdMdcFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 
