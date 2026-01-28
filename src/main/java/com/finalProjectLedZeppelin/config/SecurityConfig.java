@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -23,6 +24,8 @@ import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+
+import static org.springframework.security.config.Customizer.withDefaults;
 
 @Log4j2
 @Configuration
@@ -48,7 +51,33 @@ public class SecurityConfig {
     }
 
     @Bean
-    SecurityFilterChain securityFilterChain(
+    @Order(1)
+    SecurityFilterChain actuatorSecurityFilterChain(HttpSecurity http, ObjectMapper objectMapper) {
+        return http
+                .securityMatcher("/actuator/**")
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(reg -> reg
+                        .requestMatchers("/actuator/health/**").permitAll()
+                        .requestMatchers("/actuator/prometheus").hasRole("MONITORING")
+                        .requestMatchers("/actuator/**").hasRole("MONITORING")
+                        .anyRequest().denyAll()
+                )
+                .httpBasic(withDefaults())
+                .exceptionHandling(eh -> eh
+                        .authenticationEntryPoint((request, response, ex) ->
+                                writeApiError(response, objectMapper, HttpStatus.UNAUTHORIZED, "Unauthorized", request.getRequestURI())
+                        )
+                        .accessDeniedHandler((request, response, ex) ->
+                                writeApiError(response, objectMapper, HttpStatus.FORBIDDEN, "Access denied", request.getRequestURI())
+                        )
+                )
+                .build();
+    }
+
+    @Bean
+    @Order(2)
+    SecurityFilterChain apiSecurityFilterChain(
             HttpSecurity http,
             JwtService jwtService,
             ObjectMapper objectMapper,
