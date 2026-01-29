@@ -14,6 +14,13 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * REST controller providing administrative operations for managing users.
+ * <p>
+ * Exposes endpoints for listing users, updating user roles,
+ * and deleting user accounts. Access is restricted to users
+ * with the {@code ADMIN} role.
+ */
 @Log4j2
 @RestController
 @RequestMapping("/api/admin/users")
@@ -22,10 +29,24 @@ public class AdminUserController {
 
     private final UserRepository userRepository;
 
+    /**
+     * Creates a new {@code AdminUserController} instance.
+     *
+     * @param userRepository repository used to access and manage users
+     */
     public AdminUserController(UserRepository userRepository) {
         this.userRepository = userRepository;
     }
 
+    /**
+     * Returns a paginated list of users.
+     * <p>
+     * Supports optional case-insensitive search by email.
+     *
+     * @param q        optional search query for filtering users by email
+     * @param pageable pagination and sorting information
+     * @return page of users represented as {@link UserAdminResponse}
+     */
     @GetMapping
     public Page<UserAdminResponse> list(
             @RequestParam(required = false) String q,
@@ -53,6 +74,15 @@ public class AdminUserController {
         ));
     }
 
+    /**
+     * Updates the role of a specific user.
+     *
+     * @param id  identifier of the target user
+     * @param req request containing the new role
+     * @return updated user representation
+     * @throws NotFoundException        if the user does not exist
+     * @throws IllegalArgumentException if the provided role is invalid
+     */
     @PatchMapping("/{id}/role")
     public UserAdminResponse updateRole(@PathVariable Long id, @RequestBody @Valid UpdateUserRoleRequest req) {
         log.info(
@@ -75,6 +105,16 @@ public class AdminUserController {
         return new UserAdminResponse(u.getId(), u.getEmail(), u.getRole().name(), u.getCreatedAt());
     }
 
+    /**
+     * Deletes a user account.
+     * <p>
+     * Self-deletion by an administrator is not allowed.
+     *
+     * @param id   identifier of the target user
+     * @param auth authentication object representing the current admin
+     * @throws IllegalArgumentException if an admin attempts to delete themselves
+     * @throws NotFoundException        if the user does not exist
+     */
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id, Authentication auth) {
         Long currentUserId = (Long) auth.getPrincipal();

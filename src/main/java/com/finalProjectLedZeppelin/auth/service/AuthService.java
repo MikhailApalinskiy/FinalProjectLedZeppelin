@@ -12,6 +12,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Service responsible for user authentication and registration.
+ * <p>
+ * Handles user login, registration, password validation,
+ * and access token generation.
+ */
 @Log4j2
 @Service
 @Transactional
@@ -21,12 +27,29 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
 
+    /**
+     * Creates a new {@code AuthService} instance.
+     *
+     * @param userRepository  repository used to access user data
+     * @param passwordEncoder encoder used for hashing and validating passwords
+     * @param jwtService      service responsible for JWT generation and parsing
+     */
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
     }
 
+    /**
+     * Registers a new user and issues an access token.
+     * <p>
+     * The email is normalized before persistence. If a user with the same
+     * email already exists, the registration is rejected.
+     *
+     * @param req registration request containing user credentials
+     * @return authentication response with a generated access token
+     * @throws EmailAlreadyExistsException if a user with the given email already exists
+     */
     public AuthResponse register(RegisterRequest req) {
         String email = req.email().toLowerCase().trim();
         log.info("Auth register attempt (email={})", email);
@@ -44,6 +67,17 @@ public class AuthService {
         return new AuthResponse(token);
     }
 
+    /**
+     * Authenticates a user and issues a new access token.
+     * <p>
+     * Validates user credentials and returns a signed JWT
+     * if authentication is successful.
+     *
+     * @param req login request containing user credentials
+     * @return authentication response with a generated access token
+     * @throws BadCredentialsException if the user does not exist
+     *                                 or the password is invalid
+     */
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest req) {
         String email = req.email().toLowerCase().trim();
@@ -63,13 +97,31 @@ public class AuthService {
         return new AuthResponse(token);
     }
 
+    /**
+     * Exception thrown when attempting to register a user
+     * with an email address that already exists.
+     */
     public static class EmailAlreadyExistsException extends RuntimeException {
+
+        /**
+         * Creates a new exception instance.
+         *
+         * @param email email address that already exists
+         */
         public EmailAlreadyExistsException(String email) {
             super("Email already exists: " + email);
         }
     }
 
+    /**
+     * Exception thrown when authentication fails due to
+     * invalid credentials.
+     */
     public static class BadCredentialsException extends RuntimeException {
+
+        /**
+         * Creates a new exception instance.
+         */
         public BadCredentialsException() {
             super("Invalid email or password");
         }

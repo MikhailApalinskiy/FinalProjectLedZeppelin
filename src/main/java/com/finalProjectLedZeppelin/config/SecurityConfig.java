@@ -27,29 +27,63 @@ import java.time.Instant;
 
 import static org.springframework.security.config.Customizer.withDefaults;
 
+/**
+ * Spring Security configuration for the application.
+ * <p>
+ * Configures stateless security using JWT authentication for API endpoints
+ * and HTTP Basic authentication for actuator endpoints. Also registers
+ * infrastructure filters for request and user log correlation.
+ */
 @Log4j2
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
 
+    /**
+     * Configures the password encoder used for hashing user passwords.
+     *
+     * @return password encoder implementation
+     */
     @Bean
     public PasswordEncoder passwordEncoder() {
         log.info("PasswordEncoder configured: BCryptPasswordEncoder");
         return new BCryptPasswordEncoder();
     }
 
+    /**
+     * Filter responsible for assigning a request identifier
+     * to each incoming HTTP request.
+     *
+     * @return request ID MDC filter
+     */
     @Bean
     public RequestIdMdcFilter requestIdMdcFilter() {
         log.info("Security filter configured: RequestIdMdcFilter");
         return new RequestIdMdcFilter();
     }
 
+    /**
+     * Filter responsible for enriching logs with the authenticated
+     * user's identifier.
+     *
+     * @return user ID MDC filter
+     */
     @Bean
     public UserIdMdcFilter userIdMdcFilter() {
         log.info("Security filter configured: UserIdMdcFilter");
         return new UserIdMdcFilter();
     }
 
+    /**
+     * Security filter chain for actuator endpoints.
+     * <p>
+     * Uses HTTP Basic authentication and restricts access to monitoring
+     * endpoints based on the {@code MONITORING} role.
+     *
+     * @param http         HTTP security configuration
+     * @param objectMapper object mapper used for error responses
+     * @return configured security filter chain
+     */
     @Bean
     @Order(1)
     SecurityFilterChain actuatorSecurityFilterChain(HttpSecurity http, ObjectMapper objectMapper) {
@@ -75,6 +109,19 @@ public class SecurityConfig {
                 .build();
     }
 
+    /**
+     * Security filter chain for API endpoints.
+     * <p>
+     * Applies JWT-based authentication, disables sessions, and allows
+     * unauthenticated access only to public authentication endpoints.
+     *
+     * @param http               HTTP security configuration
+     * @param jwtService         service used to validate JWT tokens
+     * @param objectMapper       object mapper used for error responses
+     * @param requestIdMdcFilter filter for request ID correlation
+     * @param userIdMdcFilter    filter for user ID log correlation
+     * @return configured security filter chain
+     */
     @Bean
     @Order(2)
     SecurityFilterChain apiSecurityFilterChain(
@@ -109,6 +156,17 @@ public class SecurityConfig {
                 .build();
     }
 
+    /**
+     * Writes a standardized {@link ApiError} response directly
+     * to the HTTP response output stream.
+     *
+     * @param response     HTTP response
+     * @param objectMapper object mapper for JSON serialization
+     * @param status       HTTP status to return
+     * @param message      error message
+     * @param path         request path
+     * @throws IOException in case of I/O errors
+     */
     private static void writeApiError(
             HttpServletResponse response,
             ObjectMapper objectMapper,

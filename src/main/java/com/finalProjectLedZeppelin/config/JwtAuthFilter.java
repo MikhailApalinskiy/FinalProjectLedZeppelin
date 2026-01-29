@@ -17,19 +17,57 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Servlet filter responsible for JWT-based authentication.
+ * <p>
+ * Extracts and validates a JWT access token from the {@code Authorization}
+ * header using the {@code Bearer} scheme. If the token is valid, an
+ * {@link org.springframework.security.core.Authentication} object is created
+ * and stored in the {@link SecurityContextHolder}.
+ */
 @Log4j2
 public class JwtAuthFilter extends OncePerRequestFilter {
 
+    /**
+     * Authorization header prefix for bearer tokens.
+     */
     private static final String BEARER_PREFIX = "Bearer ";
+
+    /**
+     * JWT claim name containing the user identifier.
+     */
     private static final String CLAIM_UID = "uid";
+
+    /**
+     * JWT claim name containing the user role.
+     */
     private static final String CLAIM_ROLE = "role";
 
     private final JwtService jwtService;
 
+    /**
+     * Creates a new {@code JwtAuthFilter} instance.
+     *
+     * @param jwtService service used to parse and validate JWT tokens
+     */
     public JwtAuthFilter(JwtService jwtService) {
         this.jwtService = jwtService;
     }
 
+    /**
+     * Performs JWT authentication for incoming HTTP requests.
+     * <p>
+     * If a valid JWT token is present, the security context is populated
+     * with an authenticated principal containing the user ID and role.
+     * Requests without a token or with an invalid token are processed
+     * without authentication.
+     *
+     * @param request     current HTTP request
+     * @param response    current HTTP response
+     * @param filterChain filter chain to continue processing
+     * @throws ServletException in case of servlet errors
+     * @throws IOException      in case of I/O errors
+     */
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,

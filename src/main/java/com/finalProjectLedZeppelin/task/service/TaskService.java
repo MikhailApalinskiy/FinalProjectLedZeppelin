@@ -18,6 +18,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 
+/**
+ * Service responsible for task management.
+ * <p>
+ * Provides operations for creating, retrieving, updating, deleting,
+ * and listing tasks. Access rules depend on the caller role:
+ * admins can operate on any task, while non-admin users can only
+ * read/update tasks assigned to them.
+ */
 @Log4j2
 @Service
 @Transactional
@@ -26,11 +34,27 @@ public class TaskService {
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
 
+    /**
+     * Creates a new {@code TaskService} instance.
+     *
+     * @param taskRepository repository used to manage tasks
+     * @param userRepository repository used to resolve assignees
+     */
     public TaskService(TaskRepository taskRepository, UserRepository userRepository) {
         this.taskRepository = taskRepository;
         this.userRepository = userRepository;
     }
 
+    /**
+     * Creates a new task.
+     * <p>
+     * If {@code assigneeId} is provided, the assignee must exist; otherwise
+     * the task is created as unassigned.
+     *
+     * @param req task creation request
+     * @return created task representation
+     * @throws IllegalArgumentException if the assignee does not exist
+     */
     public TaskResponse create(TaskCreateRequest req) {
         log.info("Task create requested (assigneeId={}, deadline={})", req.assigneeId(), req.deadline());
         Task t = new Task();
@@ -57,6 +81,19 @@ public class TaskService {
         return toResponse(saved);
     }
 
+    /**
+     * Retrieves a task by its identifier.
+     * <p>
+     * Admins can access any task. Non-admin users can access only tasks
+     * assigned to them.
+     *
+     * @param userId  identifier of the current user
+     * @param isAdmin whether the current user has admin privileges
+     * @param taskId  identifier of the task
+     * @return task representation
+     * @throws NotFoundException     if the task does not exist
+     * @throws AccessDeniedException if the current user is not allowed to access the task
+     */
     @Transactional(readOnly = true)
     public TaskResponse get(Long userId, boolean isAdmin, Long taskId) {
         log.debug("Task get requested (taskId={}, userId={}, isAdmin={})", taskId, userId, isAdmin);
@@ -76,6 +113,18 @@ public class TaskService {
         return toResponse(t);
     }
 
+    /**
+     * Updates task fields as an administrator.
+     * <p>
+     * Allows changing title/description/deadline, optional status update,
+     * and (re)assignment/unassignment.
+     *
+     * @param taskId identifier of the task to update
+     * @param req    update request containing new task values
+     * @return updated task representation
+     * @throws NotFoundException        if the task does not exist
+     * @throws IllegalArgumentException if the assignee does not exist
+     */
     public TaskResponse adminUpdate(Long taskId, TaskUpdateRequest req) {
         log.info("Task adminUpdate requested (taskId={}, assigneeId={}, status={}, deadline={})",
                 taskId, req.assigneeId(), req.status(), req.deadline()
@@ -111,6 +160,20 @@ public class TaskService {
         return toResponse(t);
     }
 
+    /**
+     * Updates the status of a task.
+     * <p>
+     * Admins can update any task. Non-admin users can update only tasks
+     * assigned to them.
+     *
+     * @param userId    identifier of the current user
+     * @param isAdmin   whether the current user has admin privileges
+     * @param taskId    identifier of the task to update
+     * @param newStatus new status to set
+     * @return updated task representation
+     * @throws NotFoundException     if the task does not exist
+     * @throws AccessDeniedException if the current user is not allowed to update the task
+     */
     public TaskResponse updateStatus(Long userId, boolean isAdmin, Long taskId, TaskStatus newStatus) {
         log.info("Task status update requested (taskId={}, userId={}, isAdmin={}, newStatus={})",
                 taskId, userId, isAdmin, newStatus
@@ -133,6 +196,12 @@ public class TaskService {
         return toResponse(t);
     }
 
+    /**
+     * Deletes a task.
+     *
+     * @param taskId identifier of the task to delete
+     * @throws NotFoundException if the task does not exist
+     */
     public void delete(Long taskId) {
         log.info("Task delete requested (taskId={})", taskId);
         Task t = taskRepository.findById(taskId)
@@ -144,6 +213,21 @@ public class TaskService {
         log.info("Task deleted (taskId={})", taskId);
     }
 
+    /**
+     * Returns a paginated list of tasks.
+     * <p>
+     * Supports optional filtering by status and/or deadline range.
+     * Admins receive tasks across the system; non-admin users receive
+     * only tasks assigned to them.
+     *
+     * @param userId       identifier of the current user
+     * @param isAdmin      whether the current user has admin privileges
+     * @param status       optional status filter
+     * @param deadlineFrom optional deadline range start (inclusive); must be provided together with {@code deadlineTo}
+     * @param deadlineTo   optional deadline range end (inclusive); must be provided together with {@code deadlineFrom}
+     * @param pageable     pagination and sorting information
+     * @return page of matching tasks represented as {@link TaskResponse}
+     */
     @Transactional(readOnly = true)
     public Page<TaskResponse> list(
             Long userId,
@@ -187,6 +271,13 @@ public class TaskService {
         return page.map(this::toResponse);
     }
 
+    /**
+     * Ensures the task is assigned to the specified user.
+     *
+     * @param userId current user identifier
+     * @param t      task entity
+     * @throws AccessDeniedException if the task is unassigned or assigned to a different user
+     */
     private void requireAssignee(Long userId, Task t) {
         if (t.getAssignee() == null) {
             log.warn("Task access denied: task is not assigned (taskId={}, userId={})", t.getId(), userId);
@@ -200,6 +291,12 @@ public class TaskService {
         }
     }
 
+    /**
+     * Maps a {@link Task} entity to a {@link TaskResponse}.
+     *
+     * @param t task entity
+     * @return task response DTO
+     */
     private TaskResponse toResponse(Task t) {
         User a = t.getAssignee();
         return new TaskResponse(

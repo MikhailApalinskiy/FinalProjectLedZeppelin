@@ -11,6 +11,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * REST controller providing user search functionality.
+ * <p>
+ * Intended for administrative use, typically to support
+ * user selection and autocomplete features.
+ */
 @Log4j2
 @RestController
 @RequestMapping("/api/users")
@@ -18,10 +24,25 @@ public class UserController {
 
     private final UserRepository userRepository;
 
+    /**
+     * Creates a new {@code UserController} instance.
+     *
+     * @param userRepository repository used to search for users
+     */
     public UserController(UserRepository userRepository) {
         this.userRepository = userRepository;
     }
 
+    /**
+     * Searches for users by email.
+     * <p>
+     * Performs a case-insensitive search and returns up to
+     * 20 matching users ordered by email. If the query is empty,
+     * an empty list is returned.
+     *
+     * @param q search query for matching user emails
+     * @return list of matching users represented as {@link UserOption}
+     */
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     public List<UserOption> search(@RequestParam(defaultValue = "") String q) {
