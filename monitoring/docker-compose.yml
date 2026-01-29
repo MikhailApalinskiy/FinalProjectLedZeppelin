@@ -25,8 +25,6 @@ services:
     environment:
       - GF_SMTP_ENABLED=true
       - GF_SMTP_HOST=smtp.gmail.com:587
-      - GF_SMTP_FROM_ADDRESS=apalinskiy.mihkail@gmail.com
-      - GF_SMTP_FROM_NAME=Grafana
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
